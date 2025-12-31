@@ -1,8 +1,9 @@
 @echo off
+chcp 65001 > nul
 setlocal enabledelayedexpansion
 
-REM GitCodeStatic Windows 全平台构建脚本
-REM 使用 PowerShell 的交叉编译功能构建所有平台的包
+REM GitCodeStatic Windows Multi-Platform Build Script
+REM Cross-compile and package for all platforms using PowerShell
 
 set "VERSION=%1"
 set "OUTPUT_DIR=%2"
@@ -10,72 +11,72 @@ set "OUTPUT_DIR=%2"
 if "%VERSION%"=="" set "VERSION=latest"
 if "%OUTPUT_DIR%"=="" set "OUTPUT_DIR=dist"
 
-echo 开始全平台构建 GitCodeStatic v%VERSION%...
+echo Starting GitCodeStatic v%VERSION% multi-platform build...
 
-REM 设置变量
+REM Setup variables
 set "PROJECT_ROOT=%~dp0\.."
 set "OUTPUT_PATH=%PROJECT_ROOT%\%OUTPUT_DIR%"
 
-REM 清理输出目录
+REM Clean output directory
 if exist "%OUTPUT_PATH%" (
-    echo 清理旧的输出目录...
+    echo Cleaning old output directory...
     rmdir /s /q "%OUTPUT_PATH%"
 )
 mkdir "%OUTPUT_PATH%"
 
-REM 平台列表
+REM Platform list
 set PLATFORMS=windows/amd64 linux/amd64 darwin/amd64 linux/arm64 darwin/arm64
 
 cd /d "%PROJECT_ROOT%"
 
 for %%P in (%PLATFORMS%) do (
     echo.
-    echo 构建 %%P...
+    echo Building %%P...
     
-    REM 解析平台字符串
+    REM Parse platform string
     for /f "tokens=1,2 delims=/" %%A in ("%%P") do (
         set "GOOS=%%A"
         set "GOARCH=%%B"
     )
     
-    REM 设置输出文件名
+    REM Set output filename
     set "BINARY_NAME=gitcodestatic"
     if "!GOOS!"=="windows" set "BINARY_NAME=gitcodestatic.exe"
     
-    REM 设置包名
+    REM Set package name
     set "PACKAGE_NAME=gitcodestatic-!GOOS!-!GOARCH!-!VERSION!"
     set "PACKAGE_PATH=!OUTPUT_PATH!\!PACKAGE_NAME!"
     
     mkdir "!PACKAGE_PATH!"
     
-    REM 设置构建环境
+    REM Set build environment
     set "GOOS=!GOOS!"
     set "GOARCH=!GOARCH!"
     set "CGO_ENABLED=1"
     
-    REM ARM64 和交叉编译时禁用 CGO
+    REM Disable CGO for ARM64 and cross-compilation
     if "!GOARCH!"=="arm64" set "CGO_ENABLED=0"
     if not "!GOOS!"=="windows" set "CGO_ENABLED=0"
     
-    echo   构建二进制文件...
+    echo   Building binary...
     go build -ldflags "-s -w -X main.Version=!VERSION!" -o "!PACKAGE_PATH!\!BINARY_NAME!" cmd\server\main.go
     
     if !errorlevel! neq 0 (
-        echo   构建 %%P 失败！
+        echo   Build failed for %%P!
         continue
     )
     
-    echo   复制文件...
+    echo   Copying files...
     
-    REM 复制通用文件
+    REM Copy common files
     xcopy /E /I /Y web "!PACKAGE_PATH!\web\" > nul
     xcopy /E /I /Y configs "!PACKAGE_PATH!\configs\" > nul
     copy /Y README.md "!PACKAGE_PATH!\" > nul
     copy /Y QUICKSTART.md "!PACKAGE_PATH!\" > nul
     
-    REM 根据平台创建特定的启动脚本
+    REM Create platform-specific startup scripts
     if "!GOOS!"=="windows" (
-        REM Windows 启动脚本
+        REM Windows startup script
         (
             echo @echo off
             echo echo Starting GitCodeStatic Server...
@@ -87,24 +88,24 @@ for %%P in (%PLATFORMS%) do (
             echo pause
         ) > "!PACKAGE_PATH!\start.bat"
         
-        REM Windows 配置说明
+        REM Windows configuration guide
         (
-            echo GitCodeStatic Windows 版本
+            echo GitCodeStatic Windows Version
             echo.
-            echo ## 使用方法
-            echo 1. 双击 start.bat 启动服务器
-            echo 2. 打开浏览器访问 http://localhost:8080
-            echo 3. 查看 API 文档: http://localhost:8080/swagger/
+            echo ## Usage
+            echo 1. Double-click start.bat to start the server
+            echo 2. Open browser and visit http://localhost:8080
+            echo 3. View API docs: http://localhost:8080/swagger/
             echo.
-            echo ## 配置文件
-            echo - configs/config.yaml: 主配置文件
+            echo ## Configuration
+            echo - configs/config.yaml: Main configuration file
             echo.
-            echo ## 停止服务
-            echo - 在命令窗口中按 Ctrl+C 停止服务器
-        ) > "!PACKAGE_PATH!\使用说明.txt"
+            echo ## Stop Service
+            echo - Press Ctrl+C in the command window to stop the server
+        ) > "!PACKAGE_PATH!\README-Windows.txt"
         
     ) else (
-        REM Unix 启动脚本
+        REM Unix startup script
         (
             echo #!/bin/bash
             echo echo "Starting GitCodeStatic Server..."
@@ -119,56 +120,56 @@ for %%P in (%PLATFORMS%) do (
             echo ./gitcodestatic
         ) > "!PACKAGE_PATH!\start.sh"
         
-        REM Unix 说明文件
+        REM Unix documentation file
         (
-            echo # GitCodeStatic !GOOS! 版本
+            echo # GitCodeStatic !GOOS! Version
             echo.
-            echo ## 快速启动
+            echo ## Quick Start
             echo ```bash
             echo ./start.sh
-            echo # 或
+            echo # or
             echo ./gitcodestatic
             echo ```
             echo.
-            echo ## 配置文件
-            echo - configs/config.yaml: 主配置文件
+            echo ## Configuration
+            echo - configs/config.yaml: Main configuration file
             echo.
-            echo ## 访问地址
+            echo ## Access URLs
             echo - Web UI: http://localhost:8080
-            echo - API 文档: http://localhost:8080/swagger/
+            echo - API Docs: http://localhost:8080/swagger/
             echo.
-            echo ## 停止服务
-            echo 按 Ctrl+C 停止服务器
+            echo ## Stop Service
+            echo Press Ctrl+C to stop the server
         ) > "!PACKAGE_PATH!\README_!GOOS!.md"
     )
     
-    echo   创建压缩包...
+    echo   Creating archive...
     cd /d "!OUTPUT_PATH!"
     
     if "!GOOS!"=="windows" (
-        REM Windows 使用内置压缩
+        REM Windows uses built-in compression
         powershell -command "Compress-Archive -Path '!PACKAGE_NAME!' -DestinationPath '!PACKAGE_NAME!.zip' -Force" 2>nul
         if !errorlevel! equ 0 (
-            echo   ✓ 已创建 !PACKAGE_NAME!.zip
+            echo   [OK] Created !PACKAGE_NAME!.zip
         ) else (
-            echo   ⚠ 创建压缩包失败
+            echo   [WARN] Failed to create archive
         )
     ) else (
-        REM Unix 平台压缩包（如果有 tar 命令）
+        REM Unix platform archive (if tar command is available)
         where tar >nul 2>nul
         if !errorlevel! equ 0 (
             tar -czf "!PACKAGE_NAME!.tar.gz" "!PACKAGE_NAME!"
             if !errorlevel! equ 0 (
-                echo   ✓ 已创建 !PACKAGE_NAME!.tar.gz
+                echo   [OK] Created !PACKAGE_NAME!.tar.gz
             ) else (
-                echo   ⚠ 创建 tar.gz 失败
+                echo   [WARN] Failed to create tar.gz
             )
         ) else (
             powershell -command "Compress-Archive -Path '!PACKAGE_NAME!' -DestinationPath '!PACKAGE_NAME!.zip' -Force" 2>nul
             if !errorlevel! equ 0 (
-                echo   ✓ 已创建 !PACKAGE_NAME!.zip
+                echo   [OK] Created !PACKAGE_NAME!.zip
             ) else (
-                echo   ⚠ 创建压缩包失败
+                echo   [WARN] Failed to create archive
             )
         )
     )
@@ -178,15 +179,15 @@ for %%P in (%PLATFORMS%) do (
 
 echo.
 echo ===================================
-echo 全平台构建完成！
+echo Multi-Platform Build Complete!
 echo ===================================
-echo 输出目录: %OUTPUT_PATH%
+echo Output directory: %OUTPUT_PATH%
 echo.
-echo 构建的平台：
+echo Built platforms:
 
 cd /d "%OUTPUT_PATH%"
 
-REM 显示构建结果
+REM Display build results
 for %%P in (%PLATFORMS%) do (
     for /f "tokens=1,2 delims=/" %%A in ("%%P") do (
         set "GOOS=%%A"
@@ -201,18 +202,18 @@ for %%P in (%PLATFORMS%) do (
         )
         
         if exist "!ARCHIVE!" (
-            for %%F in ("!ARCHIVE!") do echo   ✓ !GOOS!/!GOARCH! - !ARCHIVE! ^(%%~zF 字节^)
+            for %%F in ("!ARCHIVE!") do echo   [OK] !GOOS!/!GOARCH! - !ARCHIVE! ^(%%~zF bytes^)
         ) else (
-            echo   ✗ !GOOS!/!GOARCH! - 构建失败
+            echo   [FAIL] !GOOS!/!GOARCH! - Build failed
         )
     )
 )
 
 echo.
 
-REM 统计文件
+REM File statistics
 set /a COUNT=0
 for %%F in (*.zip *.tar.gz) do set /a COUNT+=1
-echo 总文件数: !COUNT!
+echo Total files: !COUNT!
 
 pause
