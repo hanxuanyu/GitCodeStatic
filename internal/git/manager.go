@@ -3,7 +3,7 @@ package git
 import (
 	"context"
 
-	"github.com/gitcodestatic/gitcodestatic/internal/models"
+	"github.com/hanxuanyu/gitcodestatic/internal/models"
 )
 
 // Manager Git管理器接口

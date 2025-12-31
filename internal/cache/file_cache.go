@@ -8,9 +8,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gitcodestatic/gitcodestatic/internal/logger"
-	"github.com/gitcodestatic/gitcodestatic/internal/models"
-	"github.com/gitcodestatic/gitcodestatic/internal/storage"
+	"github.com/hanxuanyu/gitcodestatic/internal/logger"
+	"github.com/hanxuanyu/gitcodestatic/internal/models"
+	"github.com/hanxuanyu/gitcodestatic/internal/storage"
 )
 
 // FileCache 基于文件+DB的缓存实现
@@ -66,12 +66,12 @@ func (c *FileCache) Get(ctx context.Context, cacheKey string) (*models.StatsResu
 }
 
 // Set 设置缓存
-func (c *FileCache) Set(ctx context.Context, repoID int64, branch string, constraint *models.StatsConstraint, 
+func (c *FileCache) Set(ctx context.Context, repoID int64, branch string, constraint *models.StatsConstraint,
 	commitHash string, stats *models.Statistics) error {
-	
+
 	// 生成缓存键
 	cacheKey := GenerateCacheKey(repoID, branch, constraint, commitHash)
-	
+
 	// 保存统计结果到文件
 	resultPath := filepath.Join(c.statsDir, cacheKey+".json.gz")
 	if err := c.saveStatsToFile(stats, resultPath); err != nil {

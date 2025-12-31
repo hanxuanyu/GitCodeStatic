@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
-	"github.com/gitcodestatic/gitcodestatic/internal/models"
-	"github.com/gitcodestatic/gitcodestatic/internal/storage"
+	"github.com/hanxuanyu/gitcodestatic/internal/models"
+	"github.com/hanxuanyu/gitcodestatic/internal/storage"
 )
 
 // TaskService 任务服务

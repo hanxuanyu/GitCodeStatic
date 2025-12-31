@@ -9,17 +9,17 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/gitcodestatic/gitcodestatic/docs"
-	"github.com/gitcodestatic/gitcodestatic/internal/api"
-	"github.com/gitcodestatic/gitcodestatic/internal/cache"
-	"github.com/gitcodestatic/gitcodestatic/internal/config"
-	"github.com/gitcodestatic/gitcodestatic/internal/git"
-	"github.com/gitcodestatic/gitcodestatic/internal/logger"
-	"github.com/gitcodestatic/gitcodestatic/internal/models"
-	"github.com/gitcodestatic/gitcodestatic/internal/service"
-	"github.com/gitcodestatic/gitcodestatic/internal/stats"
-	"github.com/gitcodestatic/gitcodestatic/internal/storage/sqlite"
-	"github.com/gitcodestatic/gitcodestatic/internal/worker"
+	_ "github.com/hanxuanyu/gitcodestatic/docs"
+	"github.com/hanxuanyu/gitcodestatic/internal/api"
+	"github.com/hanxuanyu/gitcodestatic/internal/cache"
+	"github.com/hanxuanyu/gitcodestatic/internal/config"
+	"github.com/hanxuanyu/gitcodestatic/internal/git"
+	"github.com/hanxuanyu/gitcodestatic/internal/logger"
+	"github.com/hanxuanyu/gitcodestatic/internal/models"
+	"github.com/hanxuanyu/gitcodestatic/internal/service"
+	"github.com/hanxuanyu/gitcodestatic/internal/stats"
+	"github.com/hanxuanyu/gitcodestatic/internal/storage/sqlite"
+	"github.com/hanxuanyu/gitcodestatic/internal/worker"
 )
 
 func main() {

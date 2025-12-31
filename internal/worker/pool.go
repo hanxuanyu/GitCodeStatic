@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gitcodestatic/gitcodestatic/internal/logger"
-	"github.com/gitcodestatic/gitcodestatic/internal/storage"
+	"github.com/hanxuanyu/gitcodestatic/internal/logger"
+	"github.com/hanxuanyu/gitcodestatic/internal/storage"
 )
 
 // Pool Worker池

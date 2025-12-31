@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gitcodestatic/gitcodestatic/internal/logger"
-	"github.com/gitcodestatic/gitcodestatic/internal/service"
-	"github.com/gitcodestatic/gitcodestatic/internal/storage"
+	"github.com/hanxuanyu/gitcodestatic/internal/logger"
+	"github.com/hanxuanyu/gitcodestatic/internal/service"
+	"github.com/hanxuanyu/gitcodestatic/internal/storage"
 )
 
 // StatsHandler 统计API处理器

@@ -6,12 +6,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/gitcodestatic/gitcodestatic/internal/cache"
-	"github.com/gitcodestatic/gitcodestatic/internal/git"
-	"github.com/gitcodestatic/gitcodestatic/internal/logger"
-	"github.com/gitcodestatic/gitcodestatic/internal/models"
-	"github.com/gitcodestatic/gitcodestatic/internal/storage"
-	"github.com/gitcodestatic/gitcodestatic/internal/worker"
+	"github.com/hanxuanyu/gitcodestatic/internal/cache"
+	"github.com/hanxuanyu/gitcodestatic/internal/git"
+	"github.com/hanxuanyu/gitcodestatic/internal/logger"
+	"github.com/hanxuanyu/gitcodestatic/internal/models"
+	"github.com/hanxuanyu/gitcodestatic/internal/storage"
+	"github.com/hanxuanyu/gitcodestatic/internal/worker"
 )
 
 // StatsService 统计服务
@@ -34,9 +34,9 @@ func NewStatsService(store storage.Store, queue *worker.Queue, fileCache *cache.
 
 // CalculateRequest 统计请求
 type CalculateRequest struct {
-	RepoID     int64                    `json:"repo_id"`
-	Branch     string                   `json:"branch"`
-	Constraint *models.StatsConstraint  `json:"constraint"`
+	RepoID     int64                   `json:"repo_id"`
+	Branch     string                  `json:"branch"`
+	Constraint *models.StatsConstraint `json:"constraint"`
 }
 
 // Calculate 触发统计计算

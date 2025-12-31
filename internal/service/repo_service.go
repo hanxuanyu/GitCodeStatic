@@ -11,11 +11,11 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gitcodestatic/gitcodestatic/internal/git"
-	"github.com/gitcodestatic/gitcodestatic/internal/logger"
-	"github.com/gitcodestatic/gitcodestatic/internal/models"
-	"github.com/gitcodestatic/gitcodestatic/internal/storage"
-	"github.com/gitcodestatic/gitcodestatic/internal/worker"
+	"github.com/hanxuanyu/gitcodestatic/internal/git"
+	"github.com/hanxuanyu/gitcodestatic/internal/logger"
+	"github.com/hanxuanyu/gitcodestatic/internal/models"
+	"github.com/hanxuanyu/gitcodestatic/internal/storage"
+	"github.com/hanxuanyu/gitcodestatic/internal/worker"
 )
 
 // RepoService 仓库服务

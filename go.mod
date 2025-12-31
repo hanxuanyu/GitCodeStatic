@@ -1,4 +1,4 @@
-module github.com/gitcodestatic/gitcodestatic
+module github.com/hanxuanyu/gitcodestatic
 
 go 1.21
 

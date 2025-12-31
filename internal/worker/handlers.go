@@ -7,12 +7,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/gitcodestatic/gitcodestatic/internal/cache"
-	"github.com/gitcodestatic/gitcodestatic/internal/git"
-	"github.com/gitcodestatic/gitcodestatic/internal/logger"
-	"github.com/gitcodestatic/gitcodestatic/internal/models"
-	"github.com/gitcodestatic/gitcodestatic/internal/stats"
-	"github.com/gitcodestatic/gitcodestatic/internal/storage"
+	"github.com/hanxuanyu/gitcodestatic/internal/cache"
+	"github.com/hanxuanyu/gitcodestatic/internal/git"
+	"github.com/hanxuanyu/gitcodestatic/internal/logger"
+	"github.com/hanxuanyu/gitcodestatic/internal/models"
+	"github.com/hanxuanyu/gitcodestatic/internal/stats"
+	"github.com/hanxuanyu/gitcodestatic/internal/storage"
 )
 
 // CloneHandler 克隆任务处理器
@@ -301,7 +301,7 @@ func (h *StatsHandler) Handle(ctx context.Context, task *models.Task) error {
 	if cached != nil {
 		// 缓存命中，直接返回
 		logger.Logger.Info().Str("cache_key", cacheKey).Msg("cache hit during stats calculation")
-		
+
 		result := models.TaskResult{
 			CacheKey: cacheKey,
 			Message:  "cache hit",
@@ -310,7 +310,7 @@ func (h *StatsHandler) Handle(ctx context.Context, task *models.Task) error {
 		resultStr := string(resultJSON)
 		task.Result = &resultStr
 		h.store.Tasks().Update(ctx, task)
-		
+
 		return nil
 	}
 

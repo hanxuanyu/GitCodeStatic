@@ -3,12 +3,12 @@ package api
 import (
 	"net/http"
 
-	_ "github.com/gitcodestatic/gitcodestatic/docs"
-	"github.com/gitcodestatic/gitcodestatic/internal/api/handlers"
-	"github.com/gitcodestatic/gitcodestatic/internal/service"
-	"github.com/gitcodestatic/gitcodestatic/internal/storage"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	_ "github.com/hanxuanyu/gitcodestatic/docs"
+	"github.com/hanxuanyu/gitcodestatic/internal/api/handlers"
+	"github.com/hanxuanyu/gitcodestatic/internal/service"
+	"github.com/hanxuanyu/gitcodestatic/internal/storage"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/gitcodestatic/gitcodestatic/internal/logger"
-	"github.com/gitcodestatic/gitcodestatic/internal/models"
-	"github.com/gitcodestatic/gitcodestatic/internal/storage"
+	"github.com/hanxuanyu/gitcodestatic/internal/logger"
+	"github.com/hanxuanyu/gitcodestatic/internal/models"
+	"github.com/hanxuanyu/gitcodestatic/internal/storage"
 )
 
 // Queue 任务队列
@@ -40,7 +40,7 @@ func (q *Queue) Enqueue(ctx context.Context, task *models.Task) error {
 			Int64("repo_id", task.RepoID).
 			Str("task_type", task.TaskType).
 			Msg("task already exists, returning existing task")
-		
+
 		task.ID = existing.ID
 		task.Status = existing.Status
 		task.CreatedAt = existing.CreatedAt

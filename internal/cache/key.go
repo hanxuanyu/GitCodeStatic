@@ -5,13 +5,13 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/gitcodestatic/gitcodestatic/internal/models"
+	"github.com/hanxuanyu/gitcodestatic/internal/models"
 )
 
 // GenerateCacheKey 生成缓存键
 func GenerateCacheKey(repoID int64, branch string, constraint *models.StatsConstraint, commitHash string) string {
 	var constraintStr string
-	
+
 	if constraint != nil {
 		if constraint.Type == models.ConstraintTypeDateRange {
 			constraintStr = fmt.Sprintf("dr_%s_%s", constraint.From, constraint.To)

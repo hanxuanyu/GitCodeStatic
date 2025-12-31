@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gitcodestatic/gitcodestatic/internal/logger"
-	"github.com/gitcodestatic/gitcodestatic/internal/models"
-	"github.com/gitcodestatic/gitcodestatic/internal/storage"
+	"github.com/hanxuanyu/gitcodestatic/internal/logger"
+	"github.com/hanxuanyu/gitcodestatic/internal/models"
+	"github.com/hanxuanyu/gitcodestatic/internal/storage"
 )
 
 // TaskHandler 任务处理器接口
@@ -121,7 +121,7 @@ func (w *Worker) handleTask(ctx context.Context, task *models.Task) {
 
 	// 执行任务
 	err := handler.Handle(taskCtx, task)
-	
+
 	duration := time.Since(startTime)
 
 	if err != nil {
@@ -133,7 +133,7 @@ func (w *Worker) handleTask(ctx context.Context, task *models.Task) {
 			Str("task_type", task.TaskType).
 			Int64("duration_ms", duration.Milliseconds()).
 			Msg("task failed")
-		
+
 		w.store.Tasks().UpdateStatus(ctx, task.ID, models.TaskStatusFailed, &errMsg)
 		return
 	}
