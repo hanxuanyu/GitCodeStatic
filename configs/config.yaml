@@ -1,0 +1,44 @@
+server:
+  host: 0.0.0.0
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+
+workspace:
+  base_dir: ./workspace
+  cache_dir: ./workspace/cache
+  stats_dir: ./workspace/stats
+
+storage:
+  type: sqlite
+  sqlite:
+    path: ./workspace/data.db
+
+worker:
+  clone_workers: 2
+  pull_workers: 2
+  stats_workers: 2
+  general_workers: 4
+  queue_buffer: 100
+
+cache:
+  max_total_size: 10737418240  # 10GB
+  max_single_result: 104857600  # 100MB
+  retention_days: 30
+  cleanup_interval: 3600  # 1 hour
+
+security:
+  encryption_key: ""  # Set via environment variable ENCRYPTION_KEY
+
+git:
+  command_path: ""  # Empty means use git from PATH
+  fallback_to_gogit: true
+
+log:
+  level: info
+  format: json
+  output: stdout
+
+metrics:
+  enabled: true
+  path: /metrics

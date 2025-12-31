@@ -1,0 +1,279 @@
+package service
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"path/filepath"
+	"regexp"
+	"strings"
+
+	"github.com/gitcodestatic/gitcodestatic/internal/logger"
+	"github.com/gitcodestatic/gitcodestatic/internal/models"
+	"github.com/gitcodestatic/gitcodestatic/internal/storage"
+	"github.com/gitcodestatic/gitcodestatic/internal/worker"
+)
+
+// RepoService 仓库服务
+type RepoService struct {
+	store     storage.Store
+	queue     *worker.Queue
+	cacheDir  string
+}
+
+// NewRepoService 创建仓库服务
+func NewRepoService(store storage.Store, queue *worker.Queue, cacheDir string) *RepoService {
+	return &RepoService{
+		store:    store,
+		queue:    queue,
+		cacheDir: cacheDir,
+	}
+}
+
+// AddReposRequest 批量添加仓库请求
+type AddReposRequest struct {
+	URLs []string `json:"urls"`
+}
+
+// AddReposResponse 批量添加仓库响应
+type AddReposResponse struct {
+	Total     int                  `json:"total"`
+	Succeeded []AddRepoResult      `json:"succeeded"`
+	Failed    []AddRepoFailure     `json:"failed"`
+}
+
+// AddRepoResult 添加仓库成功结果
+type AddRepoResult struct {
+	RepoID int64  `json:"repo_id"`
+	URL    string `json:"url"`
+	TaskID int64  `json:"task_id"`
+}
+
+// AddRepoFailure 添加仓库失败结果
+type AddRepoFailure struct {
+	URL   string `json:"url"`
+	Error string `json:"error"`
+}
+
+// AddRepos 批量添加仓库
+func (s *RepoService) AddRepos(ctx context.Context, req *AddReposRequest) (*AddReposResponse, error) {
+	resp := &AddReposResponse{
+		Total:     len(req.URLs),
+		Succeeded: make([]AddRepoResult, 0),
+		Failed:    make([]AddRepoFailure, 0),
+	}
+
+	for _, url := range req.URLs {
+		// 校验URL
+		if !isValidGitURL(url) {
+			resp.Failed = append(resp.Failed, AddRepoFailure{
+				URL:   url,
+				Error: "invalid git URL",
+			})
+			continue
+		}
+
+		// 检查是否已存在
+		existing, err := s.store.Repos().GetByURL(ctx, url)
+		if err != nil {
+			resp.Failed = append(resp.Failed, AddRepoFailure{
+				URL:   url,
+				Error: fmt.Sprintf("failed to check existing repo: %v", err),
+			})
+			continue
+		}
+
+		if existing != nil {
+			resp.Failed = append(resp.Failed, AddRepoFailure{
+				URL:   url,
+				Error: "repository already exists",
+			})
+			continue
+		}
+
+		// 创建仓库记录
+		repoName := extractRepoName(url)
+		localPath := filepath.Join(s.cacheDir, repoName)
+
+		repo := &models.Repository{
+			URL:       url,
+			Name:      repoName,
+			LocalPath: localPath,
+			Status:    models.RepoStatusPending,
+		}
+
+		if err := s.store.Repos().Create(ctx, repo); err != nil {
+			resp.Failed = append(resp.Failed, AddRepoFailure{
+				URL:   url,
+				Error: fmt.Sprintf("failed to create repository: %v", err),
+			})
+			continue
+		}
+
+		// 提交clone任务
+		task := &models.Task{
+			TaskType: models.TaskTypeClone,
+			RepoID:   repo.ID,
+			Priority: 0,
+		}
+
+		if err := s.queue.Enqueue(ctx, task); err != nil {
+			resp.Failed = append(resp.Failed, AddRepoFailure{
+				URL:   url,
+				Error: fmt.Sprintf("failed to enqueue clone task: %v", err),
+			})
+			continue
+		}
+
+		resp.Succeeded = append(resp.Succeeded, AddRepoResult{
+			RepoID: repo.ID,
+			URL:    url,
+			TaskID: task.ID,
+		})
+
+		logger.Logger.Info().
+			Int64("repo_id", repo.ID).
+			Str("url", url).
+			Int64("task_id", task.ID).
+			Msg("repository added")
+	}
+
+	return resp, nil
+}
+
+// GetRepo 获取仓库详情
+func (s *RepoService) GetRepo(ctx context.Context, id int64) (*models.Repository, error) {
+	return s.store.Repos().GetByID(ctx, id)
+}
+
+// ListRepos 获取仓库列表
+func (s *RepoService) ListRepos(ctx context.Context, status string, page, pageSize int) ([]*models.Repository, int, error) {
+	return s.store.Repos().List(ctx, status, page, pageSize)
+}
+
+// SwitchBranch 切换分支
+func (s *RepoService) SwitchBranch(ctx context.Context, repoID int64, branch string) (*models.Task, error) {
+	// 检查仓库是否存在
+	repo, err := s.store.Repos().GetByID(ctx, repoID)
+	if err != nil {
+		return nil, err
+	}
+
+	if repo.Status != models.RepoStatusReady {
+		return nil, errors.New("repository is not ready")
+	}
+
+	// 创建切换分支任务
+	params := models.TaskParameters{
+		Branch: branch,
+	}
+	paramsJSON, _ := json.Marshal(params)
+
+	task := &models.Task{
+		TaskType:   models.TaskTypeSwitch,
+		RepoID:     repoID,
+		Parameters: string(paramsJSON),
+		Priority:   0,
+	}
+
+	if err := s.queue.Enqueue(ctx, task); err != nil {
+		return nil, err
+	}
+
+	logger.Logger.Info().
+		Int64("repo_id", repoID).
+		Str("branch", branch).
+		Int64("task_id", task.ID).
+		Msg("switch branch task submitted")
+
+	return task, nil
+}
+
+// UpdateRepo 更新仓库（pull）
+func (s *RepoService) UpdateRepo(ctx context.Context, repoID int64) (*models.Task, error) {
+	// 检查仓库是否存在
+	repo, err := s.store.Repos().GetByID(ctx, repoID)
+	if err != nil {
+		return nil, err
+	}
+
+	if repo.Status != models.RepoStatusReady {
+		return nil, errors.New("repository is not ready")
+	}
+
+	// 创建pull任务
+	task := &models.Task{
+		TaskType: models.TaskTypePull,
+		RepoID:   repoID,
+		Priority: 0,
+	}
+
+	if err := s.queue.Enqueue(ctx, task); err != nil {
+		return nil, err
+	}
+
+	logger.Logger.Info().
+		Int64("repo_id", repoID).
+		Int64("task_id", task.ID).
+		Msg("update task submitted")
+
+	return task, nil
+}
+
+// ResetRepo 重置仓库
+func (s *RepoService) ResetRepo(ctx context.Context, repoID int64) (*models.Task, error) {
+	// 检查仓库是否存在
+	_, err := s.store.Repos().GetByID(ctx, repoID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 创建reset任务
+	task := &models.Task{
+		TaskType: models.TaskTypeReset,
+		RepoID:   repoID,
+		Priority: 1, // 高优先级
+	}
+
+	if err := s.queue.Enqueue(ctx, task); err != nil {
+		return nil, err
+	}
+
+	logger.Logger.Info().
+		Int64("repo_id", repoID).
+		Int64("task_id", task.ID).
+		Msg("reset task submitted")
+
+	return task, nil
+}
+
+// DeleteRepo 删除仓库
+func (s *RepoService) DeleteRepo(ctx context.Context, id int64) error {
+	return s.store.Repos().Delete(ctx, id)
+}
+
+// isValidGitURL 校验Git URL
+func isValidGitURL(url string) bool {
+	// 简单校验：https:// 或 git@ 开头
+	return strings.HasPrefix(url, "https://") || 
+		   strings.HasPrefix(url, "http://") || 
+		   strings.HasPrefix(url, "git@")
+}
+
+// extractRepoName 从URL提取仓库名称
+func extractRepoName(url string) string {
+	// 移除.git后缀
+	url = strings.TrimSuffix(url, ".git")
+	
+	// 提取最后一个路径部分
+	parts := strings.Split(url, "/")
+	if len(parts) > 0 {
+		name := parts[len(parts)-1]
+		// 移除特殊字符
+		name = regexp.MustCompile(`[^a-zA-Z0-9_-]`).ReplaceAllString(name, "_")
+		return name
+	}
+	
+	return "repo"
+}

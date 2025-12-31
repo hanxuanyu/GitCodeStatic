@@ -1,5 +1,5 @@
 # =========================
-# Go 常用 .gitignore
+# GitCodeStatic .gitignore
 # =========================
 
 # 编译产物 / 可执行文件
@@ -17,17 +17,22 @@
 *.cover
 *.cov
 *.trace
+bin/
+gitcodestatic
 
-# Go workspace / 依赖缓存（本地开发常见，不建议入库）
-/bin/
+# Go workspace / 依赖缓存
 /pkg/
 /dist/
 /build/
-/out/
 
-# Go build cache（通常不需要忽略；如你有需要可开启）
-# /tmp/
-# /cache/
+# Workspace data (项目特定)
+workspace/
+*.db
+*.db-shm
+*.db-wal
+
+# Config files (keep example)
+configs/config.local.yaml
 
 # 调试/日志/临时文件
 *.log
