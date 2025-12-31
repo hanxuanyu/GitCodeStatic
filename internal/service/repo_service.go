@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/gitcodestatic/gitcodestatic/internal/git"
 	"github.com/gitcodestatic/gitcodestatic/internal/logger"
 	"github.com/gitcodestatic/gitcodestatic/internal/models"
 	"github.com/gitcodestatic/gitcodestatic/internal/storage"
@@ -17,30 +20,40 @@ import (
 
 // RepoService 仓库服务
 type RepoService struct {
-	store     storage.Store
-	queue     *worker.Queue
-	cacheDir  string
+	store      storage.Store
+	queue      *worker.Queue
+	cacheDir   string
+	gitManager git.Manager
 }
 
 // NewRepoService 创建仓库服务
-func NewRepoService(store storage.Store, queue *worker.Queue, cacheDir string) *RepoService {
+func NewRepoService(store storage.Store, queue *worker.Queue, cacheDir string, gitManager git.Manager) *RepoService {
 	return &RepoService{
-		store:    store,
-		queue:    queue,
-		cacheDir: cacheDir,
+		store:      store,
+		queue:      queue,
+		cacheDir:   cacheDir,
+		gitManager: gitManager,
 	}
 }
 
 // AddReposRequest 批量添加仓库请求
+// RepoInput 仓库输入
+type RepoInput struct {
+	URL    string `json:"url"`
+	Branch string `json:"branch"`
+}
+
 type AddReposRequest struct {
-	URLs []string `json:"urls"`
+	Repos    []RepoInput `json:"repos"`
+	Username string      `json:"username,omitempty"` // 可选的认证信息
+	Password string      `json:"password,omitempty"` // 可选的认证信息
 }
 
 // AddReposResponse 批量添加仓库响应
 type AddReposResponse struct {
-	Total     int                  `json:"total"`
-	Succeeded []AddRepoResult      `json:"succeeded"`
-	Failed    []AddRepoFailure     `json:"failed"`
+	Total     int              `json:"total"`
+	Succeeded []AddRepoResult  `json:"succeeded"`
+	Failed    []AddRepoFailure `json:"failed"`
 }
 
 // AddRepoResult 添加仓库成功结果
@@ -59,12 +72,36 @@ type AddRepoFailure struct {
 // AddRepos 批量添加仓库
 func (s *RepoService) AddRepos(ctx context.Context, req *AddReposRequest) (*AddReposResponse, error) {
 	resp := &AddReposResponse{
-		Total:     len(req.URLs),
+		Total:     len(req.Repos),
 		Succeeded: make([]AddRepoResult, 0),
 		Failed:    make([]AddRepoFailure, 0),
 	}
 
-	for _, url := range req.URLs {
+	// 如果提供了认证信息，创建凭据
+	var credentialID *string
+	if req.Username != "" && req.Password != "" {
+		cred := &models.Credential{
+			ID:       generateCredentialID(),
+			Username: req.Username,
+			Password: req.Password,
+			AuthType: models.AuthTypeBasic,
+		}
+
+		if err := s.store.Credentials().Create(ctx, cred); err != nil {
+			logger.Logger.Warn().Err(err).Msg("failed to save credential, will continue without credentials")
+		} else {
+			credentialID = &cred.ID
+			logger.Logger.Info().Str("credential_id", cred.ID).Msg("credential created")
+		}
+	}
+
+	for _, repoInput := range req.Repos {
+		url := repoInput.URL
+		branch := repoInput.Branch
+		if branch == "" {
+			branch = "main" // 默认分支
+		}
+
 		// 校验URL
 		if !isValidGitURL(url) {
 			resp.Failed = append(resp.Failed, AddRepoFailure{
@@ -97,10 +134,12 @@ func (s *RepoService) AddRepos(ctx context.Context, req *AddReposRequest) (*AddR
 		localPath := filepath.Join(s.cacheDir, repoName)
 
 		repo := &models.Repository{
-			URL:       url,
-			Name:      repoName,
-			LocalPath: localPath,
-			Status:    models.RepoStatusPending,
+			URL:           url,
+			Name:          repoName,
+			CurrentBranch: branch,
+			LocalPath:     localPath,
+			Status:        models.RepoStatusPending,
+			CredentialID:  credentialID,
 		}
 
 		if err := s.store.Repos().Create(ctx, repo); err != nil {
@@ -136,6 +175,7 @@ func (s *RepoService) AddRepos(ctx context.Context, req *AddReposRequest) (*AddR
 			Int64("repo_id", repo.ID).
 			Str("url", url).
 			Int64("task_id", task.ID).
+			Bool("has_credentials", credentialID != nil).
 			Msg("repository added")
 	}
 
@@ -149,7 +189,17 @@ func (s *RepoService) GetRepo(ctx context.Context, id int64) (*models.Repository
 
 // ListRepos 获取仓库列表
 func (s *RepoService) ListRepos(ctx context.Context, status string, page, pageSize int) ([]*models.Repository, int, error) {
-	return s.store.Repos().List(ctx, status, page, pageSize)
+	repos, total, err := s.store.Repos().List(ctx, status, page, pageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// 设置has_credentials标志
+	for _, repo := range repos {
+		repo.HasCredentials = repo.CredentialID != nil && *repo.CredentialID != ""
+	}
+
+	return repos, total, nil
 }
 
 // SwitchBranch 切换分支
@@ -253,19 +303,44 @@ func (s *RepoService) DeleteRepo(ctx context.Context, id int64) error {
 	return s.store.Repos().Delete(ctx, id)
 }
 
+// GetBranches 获取仓库分支列表
+func (s *RepoService) GetBranches(ctx context.Context, repoID int64) ([]string, error) {
+	// 获取仓库信息
+	repo, err := s.store.Repos().GetByID(ctx, repoID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repository: %w", err)
+	}
+
+	if repo == nil {
+		return nil, fmt.Errorf("repository not found")
+	}
+
+	if repo.Status != models.RepoStatusReady {
+		return nil, fmt.Errorf("repository is not ready, status: %s", repo.Status)
+	}
+
+	// 使用git命令获取分支列表
+	branches, err := s.gitManager.ListBranches(ctx, repo.LocalPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list branches: %w", err)
+	}
+
+	return branches, nil
+}
+
 // isValidGitURL 校验Git URL
 func isValidGitURL(url string) bool {
 	// 简单校验：https:// 或 git@ 开头
-	return strings.HasPrefix(url, "https://") || 
-		   strings.HasPrefix(url, "http://") || 
-		   strings.HasPrefix(url, "git@")
+	return strings.HasPrefix(url, "https://") ||
+		strings.HasPrefix(url, "http://") ||
+		strings.HasPrefix(url, "git@")
 }
 
 // extractRepoName 从URL提取仓库名称
 func extractRepoName(url string) string {
 	// 移除.git后缀
 	url = strings.TrimSuffix(url, ".git")
-	
+
 	// 提取最后一个路径部分
 	parts := strings.Split(url, "/")
 	if len(parts) > 0 {
@@ -274,6 +349,13 @@ func extractRepoName(url string) string {
 		name = regexp.MustCompile(`[^a-zA-Z0-9_-]`).ReplaceAllString(name, "_")
 		return name
 	}
-	
+
 	return "repo"
+}
+
+// generateCredentialID 生成凭据ID
+func generateCredentialID() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return hex.EncodeToString(b)
 }

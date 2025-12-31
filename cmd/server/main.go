@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/gitcodestatic/gitcodestatic/docs"
 	"github.com/gitcodestatic/gitcodestatic/internal/api"
 	"github.com/gitcodestatic/gitcodestatic/internal/cache"
 	"github.com/gitcodestatic/gitcodestatic/internal/config"
@@ -82,21 +83,21 @@ func main() {
 	}
 
 	// 创建Worker池
-	totalWorkers := cfg.Worker.CloneWorkers + cfg.Worker.PullWorkers + 
+	totalWorkers := cfg.Worker.CloneWorkers + cfg.Worker.PullWorkers +
 		cfg.Worker.StatsWorkers + cfg.Worker.GeneralWorkers
-	
-	pool := worker.NewPool(totalWorkers, cfg.Worker.QueueBuffer, store, handlers)
+
+	pool := worker.NewPool(totalWorkers, queue, store, handlers)
 	pool.Start()
 	defer pool.Stop()
 
 	logger.Logger.Info().Int("workers", totalWorkers).Msg("worker pool started")
 
 	// 创建服务层
-	repoService := service.NewRepoService(store, queue, cfg.Workspace.CacheDir)
+	repoService := service.NewRepoService(store, queue, cfg.Workspace.CacheDir, gitManager)
 	statsService := service.NewStatsService(store, queue, fileCache, gitManager)
 
 	// 设置路由
-	router := api.NewRouter(repoService, statsService)
+	router := api.NewRouter(repoService, statsService, store, cfg.Web.Dir, cfg.Web.Enabled)
 	handler := router.Setup()
 
 	// 创建HTTP服务器

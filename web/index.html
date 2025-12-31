@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitCodeStatic - Git 仓库统计与缓存系统</title>
+    <link rel="stylesheet" href="/static/lib/element-plus.css">
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,.12);
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        .header p {
+            margin: 5px 0 0 0;
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        .page-card {
+            margin-bottom: 20px;
+        }
+        .stats-card {
+            text-align: center;
+        }
+        .stats-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #409EFF;
+            margin: 10px 0;
+        }
+        .code-block {
+            background: #f5f7fa;
+            padding: 12px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+        }
+        .task-status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        .task-status.pending { background: #e6a23c; color: white; }
+        .task-status.running { background: #409eff; color: white; }
+        .task-status.completed { background: #67c23a; color: white; }
+        .task-status.failed { background: #f56c6c; color: white; }
+        
+        .cache-card {
+            transition: all 0.3s ease;
+            border: 1px solid #ebeef5;
+        }
+        .cache-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border-color: #409eff;
+        }
+        .cache-card .el-card__body {
+            padding: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="header">
+            <h1>🚀 GitCodeStatic</h1>
+            <p>Git 仓库统计与缓存系统 - 高性能代码仓库数据分析平台</p>
+        </div>
+
+        <div class="container">
+            <el-tabs v-model="activeTab" type="border-card">
+                <!-- 仓库管理 -->
+                <el-tab-pane label="仓库管理" name="repos">
+                    <el-card class="page-card">
+                        <template #header>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>仓库列表</span>
+                                <div>
+                                    <el-button @click="loadRepos" size="small">刷新</el-button>
+                                    <el-button type="primary" @click="showAddRepoDialog" size="small">批量添加</el-button>
+                                </div>
+                            </div>
+                        </template>
+                        <el-table :data="repos" border stripe v-loading="reposLoading">
+                            <el-table-column prop="id" label="ID" width="80"></el-table-column>
+                            <el-table-column prop="url" label="仓库URL" min-width="300"></el-table-column>
+                            <el-table-column prop="current_branch" label="当前分支" width="120"></el-table-column>
+                            <el-table-column label="认证" width="80">
+                                <template #default="scope">
+                                    <el-tag v-if="scope.row.has_credentials" type="success" size="small">已配置</el-tag>
+                                    <el-tag v-else type="info" size="small">无</el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="status" label="状态" width="120">
+                                <template #default="scope">
+                                    <el-tag :type="getRepoStatusType(scope.row.status)">
+                                        {{ scope.row.status }}
+                                    </el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="local_path" label="本地路径" min-width="200"></el-table-column>
+                            <el-table-column label="操作" width="320">
+                                <template #default="scope">
+                                    <el-button size="small" @click="switchBranch(scope.row)">切换分支</el-button>
+                                    <el-button size="small" type="warning" @click="updateRepo(scope.row.id)">更新</el-button>
+                                    <el-button size="small" type="info" @click="resetRepo(scope.row.id)">重置</el-button>
+                                    <el-button size="small" type="danger" @click="deleteRepo(scope.row.id)">删除</el-button>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                    </el-card>
+                </el-tab-pane>
+
+                <!-- 统计管理 -->
+                <el-tab-pane label="统计管理" name="stats">
+                    <!-- 统计计算 -->
+                    <el-row :gutter="20" style="margin-bottom: 20px;">
+                        <el-col :span="8">
+                            <el-card>
+                                <template #header>新建统计任务</template>
+                                <el-form :model="statsForm" size="small">
+                                    <el-form-item label="仓库">
+                                        <el-select v-model="statsForm.repo_id" placeholder="选择仓库" style="width: 100%" @change="onRepoChange">
+                                            <el-option 
+                                                v-for="repo in repos" 
+                                                :key="repo.id" 
+                                                :label="getRepoDisplayName(repo)" 
+                                                :value="repo.id">
+                                            </el-option>
+                                        </el-select>
+                                    </el-form-item>
+                                    <el-form-item label="分支">
+                                        <el-select 
+                                            v-model="statsForm.branch" 
+                                            placeholder="选择分支" 
+                                            style="width: 100%" 
+                                            filterable 
+                                            allow-create
+                                            :loading="statsFormBranchesLoading">
+                                            <el-option 
+                                                v-for="branch in statsFormBranches" 
+                                                :key="branch" 
+                                                :label="branch" 
+                                                :value="branch">
+                                            </el-option>
+                                        </el-select>
+                                    </el-form-item>
+                                    <el-form-item label="约束">
+                                        <el-radio-group v-model="statsForm.constraint_type" size="small">
+                                            <el-radio label="commit_limit">提交数</el-radio>
+                                            <el-radio label="date_range">日期</el-radio>
+                                        </el-radio-group>
+                                    </el-form-item>
+                                    <el-form-item v-if="statsForm.constraint_type === 'date_range'" label="日期范围">
+                                        <el-date-picker 
+                                            v-model="statsDateRange" 
+                                            type="daterange"
+                                            range-separator="至"
+                                            start-placeholder="开始日期"
+                                            end-placeholder="结束日期"
+                                            value-format="YYYY-MM-DD"
+                                            style="width: 100%">
+                                        </el-date-picker>
+                                    </el-form-item>
+                                    <el-form-item v-if="statsForm.constraint_type === 'commit_limit'" label="提交数">
+                                        <el-input-number v-model="statsForm.limit" :min="1" :max="10000" style="width: 100%"></el-input-number>
+                                    </el-form-item>
+                                    <el-form-item>
+                                        <el-button type="primary" @click="calculateStats" :disabled="!statsForm.repo_id || !statsForm.branch" block>开始计算</el-button>
+                                    </el-form-item>
+                                </el-form>
+                            </el-card>
+                        </el-col>
+                        <el-col :span="16">
+                            <el-card>
+                                <template #header>
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span>统计结果列表</span>
+                                        <el-button @click="loadCaches" size="small">刷新</el-button>
+                                    </div>
+                                </template>
+                                <div v-loading="cachesLoading" style="max-height: 400px; overflow-y: auto;">
+                                    <el-empty v-if="!caches || caches.length === 0" description="暂无统计数据" :image-size="100"></el-empty>
+                                    <div v-else>
+                                        <div v-for="cache in caches" :key="cache.id" 
+                                             style="border: 1px solid #ebeef5; border-radius: 4px; margin-bottom: 12px; padding: 12px; cursor: pointer; transition: all 0.3s;"
+                                             @click="viewStatsCache(cache)"
+                                             @mouseenter="$event.target.style.borderColor='#409eff'; $event.target.style.boxShadow='0 2px 12px rgba(64,158,255,0.15)'"
+                                             @mouseleave="$event.target.style.borderColor='#ebeef5'; $event.target.style.boxShadow='none'">
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                                <div style="font-weight: bold; color: #303133;">
+                                                    {{ getRepoName(cache.repo_id) }} / {{ cache.branch }}
+                                                </div>
+                                                <div>
+                                                    <el-tag size="small" :type="cache.constraint_type === 'date_range' ? 'success' : 'primary'">
+                                                        {{ cache.constraint_type === 'date_range' ? '日期范围' : '提交数限制' }}
+                                                    </el-tag>
+                                                </div>
+                                            </div>
+                                            <div style="color: #606266; font-size: 13px; margin-bottom: 6px;">
+                                                {{ getConstraintText(cache) }}
+                                            </div>
+                                            <div style="display: flex; justify-content: space-between; font-size: 12px; color: #909399;">
+                                                <span>{{ formatDate(cache.created_at) }}</span>
+                                                <span>{{ formatFileSize(cache.result_size) }} | {{ cache.hit_count }}次命中</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </el-card>
+                        </el-col>
+                    </el-row>
+
+                    <!-- 统计详情显示 -->
+                    <div v-if="selectedStatsResult" v-loading="statsLoading">
+                        <el-row :gutter="16" style="margin-bottom: 16px;">
+                            <el-col :span="6">
+                                <el-card class="stats-card">
+                                    <div>总提交数</div>
+                                    <div class="stats-value">{{ selectedStatsResult.summary.total_commits }}</div>
+                                </el-card>
+                            </el-col>
+                            <el-col :span="6">
+                                <el-card class="stats-card">
+                                    <div>贡献者数</div>
+                                    <div class="stats-value">{{ selectedStatsResult.summary.total_contributors }}</div>
+                                </el-card>
+                            </el-col>
+                            <el-col :span="6">
+                                <el-card class="stats-card">
+                                    <div>增加行数</div>
+                                    <div class="stats-value" style="color: #67c23a;">+{{ selectedStatsResult.summary.total_additions }}</div>
+                                </el-card>
+                            </el-col>
+                            <el-col :span="6">
+                                <el-card class="stats-card">
+                                    <div>删除行数</div>
+                                    <div class="stats-value" style="color: #f56c6c;">-{{ selectedStatsResult.summary.total_deletions }}</div>
+                                </el-card>
+                            </el-col>
+                        </el-row>
+
+                        <el-card>
+                            <template #header>贡献者详情</template>
+                            <el-table :data="selectedStatsResult.contributors" border stripe max-height="400">
+                                <el-table-column prop="name" label="姓名" width="150"></el-table-column>
+                                <el-table-column prop="email" label="邮箱" width="200"></el-table-column>
+                                <el-table-column prop="commit_count" label="提交数" width="80" sortable></el-table-column>
+                                <el-table-column prop="additions" label="增加" width="80" sortable>
+                                    <template #default="scope">
+                                        <span style="color: #67c23a;">+{{ scope.row.additions }}</span>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="deletions" label="删除" width="80" sortable>
+                                    <template #default="scope">
+                                        <span style="color: #f56c6c;">-{{ scope.row.deletions }}</span>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="first_commit_date" label="首次提交" width="160"></el-table-column>
+                                <el-table-column prop="last_commit_date" label="最后提交" width="160"></el-table-column>
+                            </el-table>
+                        </el-card>
+                    </div>
+                </el-tab-pane>
+
+                <!-- 任务监控 -->
+                <el-tab-pane label="任务监控" name="tasks">
+                    <el-card class="page-card">
+                        <template #header>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>任务列表</span>
+                                <div>
+                                    <el-button @click="loadTasks" size="small">刷新</el-button>
+                                    <el-button @click="clearCompletedTasks" size="small" type="warning">清理已完成</el-button>
+                                    <el-button @click="clearAllTasks" size="small" type="danger">清空所有</el-button>
+                                </div>
+                            </div>
+                        </template>
+                        <el-table :data="tasks" border stripe v-loading="tasksLoading">
+                            <el-table-column prop="id" label="任务ID" width="80"></el-table-column>
+                            <el-table-column prop="task_type" label="任务类型" width="120">
+                                <template #default="scope">
+                                    <el-tag size="small">{{ scope.row.task_type }}</el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="repo_id" label="仓库ID" width="100"></el-table-column>
+                            <el-table-column prop="status" label="状态" width="120">
+                                <template #default="scope">
+                                    <el-tag :type="getTaskStatusType(scope.row.status)">
+                                        {{ scope.row.status }}
+                                    </el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="priority" label="优先级" width="100"></el-table-column>
+                            <el-table-column prop="error_message" label="错误信息" min-width="200"></el-table-column>
+                            <el-table-column prop="created_at" label="创建时间" width="180"></el-table-column>
+                            <el-table-column prop="updated_at" label="更新时间" width="180"></el-table-column>
+                        </el-table>
+                    </el-card>
+                </el-tab-pane>
+
+                <!-- 缓存管理 -->
+                <el-tab-pane label="缓存管理" name="caches">
+                    <el-card class="page-card">
+                        <template #header>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>统计缓存列表</span>
+                                <div>
+                                    <el-button @click="loadCaches" size="small">刷新</el-button>
+                                    <el-button @click="clearAllCaches" size="small" type="danger">清空缓存</el-button>
+                                </div>
+                            </div>
+                        </template>
+                        <el-table :data="caches" border stripe v-loading="cachesLoading">
+                            <el-table-column prop="id" label="缓存ID" width="80"></el-table-column>
+                            <el-table-column prop="repo_id" label="仓库ID" width="100"></el-table-column>
+                            <el-table-column prop="branch" label="分支" width="120"></el-table-column>
+                            <el-table-column prop="constraint_type" label="约束类型" width="120">
+                                <template #default="scope">
+                                    <el-tag size="small" :type="scope.row.constraint_type === 'commit_limit' ? 'primary' : 'success'">
+                                        {{ scope.row.constraint_type === 'commit_limit' ? '提交限制' : '日期范围' }}
+                                    </el-tag>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="result_size" label="文件大小" width="120">
+                                <template #default="scope">
+                                    {{ formatFileSize(scope.row.result_size) }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="hit_count" label="命中次数" width="100"></el-table-column>
+                            <el-table-column prop="created_at" label="创建时间" width="180"></el-table-column>
+                            <el-table-column prop="last_hit_at" label="最后命中" width="180">
+                                <template #default="scope">
+                                    {{ scope.row.last_hit_at || '-' }}
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                    </el-card>
+                </el-tab-pane>
+
+                <!-- API 文档 -->
+                <el-tab-pane label="API 文档" name="api">
+                    <el-card class="page-card">
+                        <template #header>Swagger API 文档</template>
+                        <p>访问 <a href="/swagger/index.html" target="_blank" style="color: #409EFF;">/swagger/index.html</a> 查看完整的 API 文档</p>
+                        <el-divider></el-divider>
+                        <h3>快速开始</h3>
+                        <div class="code-block">
+curl -X POST http://localhost:8080/api/v1/repos/batch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repos": [
+      {"url": "https://github.com/user/repo.git", "branch": "main"}
+    ]
+  }'
+                        </div>
+                    </el-card>
+                </el-tab-pane>
+            </el-tabs>
+        </div>
+
+        <!-- 添加仓库对话框 -->
+        <el-dialog v-model="addRepoVisible" title="批量添加仓库" width="600px">
+            <el-form :model="addRepoForm" label-width="100px">
+                <el-form-item label="仓库URL">
+                    <el-input 
+                        v-model="addRepoForm.urls" 
+                        type="textarea" 
+                        :rows="6"
+                        placeholder="每行一个仓库URL，格式：https://github.com/user/repo.git">
+                    </el-input>
+                </el-form-item>
+                <el-form-item label="默认分支">
+                    <el-input v-model="addRepoForm.branch" placeholder="main"></el-input>
+                </el-form-item>
+                <el-divider content-position="left">认证信息（可选）</el-divider>
+                <el-form-item label="用户名">
+                    <el-input v-model="addRepoForm.username" placeholder="如需认证，请输入用户名" clearable></el-input>
+                </el-form-item>
+                <el-form-item label="密码/Token">
+                    <el-input v-model="addRepoForm.password" type="password" placeholder="如需认证，请输入密码或Token" show-password clearable></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="addRepoVisible = false">取消</el-button>
+                <el-button type="primary" @click="addRepos">确定</el-button>
+            </template>
+        </el-dialog>
+
+        <!-- 切换分支对话框 -->
+        <el-dialog v-model="switchBranchVisible" title="切换分支" width="500px">
+            <el-form :model="switchBranchForm" label-width="100px" v-loading="branchesLoading">
+                <el-form-item label="仓库">
+                    <el-input :value="switchBranchForm.repoUrl" disabled></el-input>
+                </el-form-item>
+                <el-form-item label="当前分支">
+                    <el-tag>{{ switchBranchForm.currentBranch }}</el-tag>
+                </el-form-item>
+                <el-form-item label="选择分支">
+                    <el-select v-model="switchBranchForm.branch" placeholder="选择分支" style="width: 100%;" filterable allow-create>
+                        <el-option 
+                            v-for="branch in branches" 
+                            :key="branch" 
+                            :label="branch" 
+                            :value="branch">
+                        </el-option>
+                    </el-select>
+                    <div style="margin-top: 8px; font-size: 12px; color: #909399;">
+                        可以从列表选择或手动输入分支名
+                    </div>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="switchBranchVisible = false">取消</el-button>
+                <el-button type="primary" @click="confirmSwitchBranch" :disabled="!switchBranchForm.branch">确定</el-button>
+            </template>
+        </el-dialog>
+    </div>
+
+    <script src="/static/lib/vue.global.prod.js"></script>
+    <script src="/static/lib/element-plus.min.js"></script>
+    <script src="/static/lib/axios.min.js"></script>
+    <script src="/static/app.js"></script>
+</body>
+</html>

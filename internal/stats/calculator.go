@@ -95,8 +95,8 @@ func (c *Calculator) parseGitLog(output string) (*models.Statistics, error) {
 	}
 
 	contributors := make(map[string]*models.ContributorStats)
-	
-	var currentAuthor, currentEmail string
+
+	var currentAuthor, currentEmail, currentDate string
 	commitCount := 0
 
 	scanner := bufio.NewScanner(strings.NewReader(output))
@@ -105,7 +105,7 @@ func (c *Calculator) parseGitLog(output string) (*models.Statistics, error) {
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		
+
 		if line == "" {
 			continue
 		}
@@ -114,14 +114,21 @@ func (c *Calculator) parseGitLog(output string) (*models.Statistics, error) {
 		if matches := commitPattern.FindStringSubmatch(line); matches != nil {
 			currentAuthor = matches[2]
 			currentEmail = matches[3]
+			currentDate = matches[4]
 			commitCount++
 
 			// 初始化贡献者统计
 			if _, ok := contributors[currentEmail]; !ok {
+				// 第一次遇到该贡献者，这是最新的提交（git log从新到旧）
 				contributors[currentEmail] = &models.ContributorStats{
-					Author: currentAuthor,
-					Email:  currentEmail,
+					Author:          currentAuthor,
+					Email:           currentEmail,
+					LastCommitDate:  currentDate, // 第一次遇到就是最新的
+					FirstCommitDate: currentDate, // 暂时设为相同，会不断更新
 				}
+			} else {
+				// 继续更新首次提交日期，因为git log从新到旧，越往后越早
+				contributors[currentEmail].FirstCommitDate = currentDate
 			}
 			contributors[currentEmail].Commits++
 			continue
@@ -135,7 +142,7 @@ func (c *Calculator) parseGitLog(output string) (*models.Statistics, error) {
 			// 处理二进制文件（显示为 -）
 			additions := 0
 			deletions := 0
-			
+
 			if additionsStr != "-" {
 				additions, _ = strconv.Atoi(additionsStr)
 			}

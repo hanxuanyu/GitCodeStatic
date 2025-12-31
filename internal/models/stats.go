@@ -4,17 +4,17 @@ import "time"
 
 // StatsCache 统计缓存模型
 type StatsCache struct {
-	ID              int64     `json:"id" db:"id"`
-	RepoID          int64     `json:"repo_id" db:"repo_id"`
-	Branch          string    `json:"branch" db:"branch"`
-	ConstraintType  string    `json:"constraint_type" db:"constraint_type"`     // date_range/commit_limit
-	ConstraintValue string    `json:"constraint_value" db:"constraint_value"`   // JSON string
-	CommitHash      string    `json:"commit_hash" db:"commit_hash"`
-	ResultPath      string    `json:"result_path" db:"result_path"`
-	ResultSize      int64     `json:"result_size" db:"result_size"`
-	CacheKey        string    `json:"cache_key" db:"cache_key"`
-	HitCount        int       `json:"hit_count" db:"hit_count"`
-	CreatedAt       time.Time `json:"created_at" db:"created_at"`
+	ID              int64      `json:"id" db:"id"`
+	RepoID          int64      `json:"repo_id" db:"repo_id"`
+	Branch          string     `json:"branch" db:"branch"`
+	ConstraintType  string     `json:"constraint_type" db:"constraint_type"`   // date_range/commit_limit
+	ConstraintValue string     `json:"constraint_value" db:"constraint_value"` // JSON string
+	CommitHash      string     `json:"commit_hash" db:"commit_hash"`
+	ResultPath      string     `json:"result_path" db:"result_path"`
+	ResultSize      int64      `json:"result_size" db:"result_size"`
+	CacheKey        string     `json:"cache_key" db:"cache_key"`
+	HitCount        int        `json:"hit_count" db:"hit_count"`
+	CreatedAt       time.Time  `json:"created_at" db:"created_at"`
 	LastHitAt       *time.Time `json:"last_hit_at,omitempty" db:"last_hit_at"`
 }
 
@@ -34,24 +34,24 @@ const (
 
 // StatsResult 统计结果
 type StatsResult struct {
-	CacheHit     bool                 `json:"cache_hit"`
-	CachedAt     *time.Time           `json:"cached_at,omitempty"`
-	CommitHash   string               `json:"commit_hash"`
-	Statistics   *Statistics          `json:"statistics"`
+	CacheHit   bool        `json:"cache_hit"`
+	CachedAt   *time.Time  `json:"cached_at,omitempty"`
+	CommitHash string      `json:"commit_hash"`
+	Statistics *Statistics `json:"statistics"`
 }
 
 // Statistics 统计数据
 type Statistics struct {
-	Summary         StatsSummary          `json:"summary"`
-	ByContributor   []ContributorStats    `json:"by_contributor"`
+	Summary       StatsSummary       `json:"summary"`
+	ByContributor []ContributorStats `json:"by_contributor"`
 }
 
 // StatsSummary 统计摘要
 type StatsSummary struct {
-	TotalCommits      int               `json:"total_commits"`
-	TotalContributors int               `json:"total_contributors"`
-	DateRange         *DateRange        `json:"date_range,omitempty"`
-	CommitLimit       *int              `json:"commit_limit,omitempty"`
+	TotalCommits      int        `json:"total_commits"`
+	TotalContributors int        `json:"total_contributors"`
+	DateRange         *DateRange `json:"date_range,omitempty"`
+	CommitLimit       *int       `json:"commit_limit,omitempty"`
 }
 
 // DateRange 日期范围
@@ -62,13 +62,15 @@ type DateRange struct {
 
 // ContributorStats 贡献者统计
 type ContributorStats struct {
-	Author        string `json:"author"`
-	Email         string `json:"email"`
-	Commits       int    `json:"commits"`
-	Additions     int    `json:"additions"`      // 新增行数
-	Deletions     int    `json:"deletions"`      // 删除行数
-	Modifications int    `json:"modifications"`  // 修改行数 = min(additions, deletions)
-	NetAdditions  int    `json:"net_additions"`  // 净增加 = additions - deletions
+	Author          string `json:"author"`
+	Email           string `json:"email"`
+	Commits         int    `json:"commits"`
+	Additions       int    `json:"additions"`         // 新增行数
+	Deletions       int    `json:"deletions"`         // 删除行数
+	Modifications   int    `json:"modifications"`     // 修改行数 = min(additions, deletions)
+	NetAdditions    int    `json:"net_additions"`     // 净增加 = additions - deletions
+	FirstCommitDate string `json:"first_commit_date"` // 首次提交日期
+	LastCommitDate  string `json:"last_commit_date"`  // 最后提交日期
 }
 
 // Credential 凭据模型

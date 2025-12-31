@@ -11,6 +11,7 @@ import (
 // Config 应用配置
 type Config struct {
 	Server    ServerConfig    `yaml:"server"`
+	Web       WebConfig       `yaml:"web"`
 	Workspace WorkspaceConfig `yaml:"workspace"`
 	Storage   StorageConfig   `yaml:"storage"`
 	Worker    WorkerConfig    `yaml:"worker"`
@@ -27,6 +28,12 @@ type ServerConfig struct {
 	Port         int           `yaml:"port"`
 	ReadTimeout  time.Duration `yaml:"read_timeout"`
 	WriteTimeout time.Duration `yaml:"write_timeout"`
+}
+
+// WebConfig 前端配置
+type WebConfig struct {
+	Dir     string `yaml:"dir"`
+	Enabled bool   `yaml:"enabled"`
 }
 
 // WorkspaceConfig 工作空间配置
@@ -82,7 +89,7 @@ type SecurityConfig struct {
 
 // GitConfig Git配置
 type GitConfig struct {
-	CommandPath      string `yaml:"command_path"`
+	CommandPath     string `yaml:"command_path"`
 	FallbackToGoGit bool   `yaml:"fallback_to_gogit"`
 }
 

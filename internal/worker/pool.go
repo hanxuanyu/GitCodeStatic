@@ -20,11 +20,9 @@ type Pool struct {
 }
 
 // NewPool 创建Worker池
-func NewPool(workerCount int, queueSize int, store storage.Store, handlers map[string]TaskHandler) *Pool {
+func NewPool(workerCount int, queue *Queue, store storage.Store, handlers map[string]TaskHandler) *Pool {
 	ctx, cancel := context.WithCancel(context.Background())
-	
-	queue := NewQueue(queueSize, store)
-	
+
 	pool := &Pool{
 		queue:    queue,
 		workers:  make([]*Worker, 0, workerCount),
@@ -46,7 +44,7 @@ func NewPool(workerCount int, queueSize int, store storage.Store, handlers map[s
 // Start 启动Worker池
 func (p *Pool) Start() {
 	logger.Logger.Info().Int("worker_count", len(p.workers)).Msg("starting worker pool")
-	
+
 	for _, worker := range p.workers {
 		worker.Start(p.ctx)
 	}
@@ -55,15 +53,15 @@ func (p *Pool) Start() {
 // Stop 停止Worker池
 func (p *Pool) Stop() {
 	logger.Logger.Info().Msg("stopping worker pool")
-	
+
 	p.cancel()
-	
+
 	for _, worker := range p.workers {
 		worker.Stop()
 	}
-	
+
 	p.queue.Close()
-	
+
 	logger.Logger.Info().Msg("worker pool stopped")
 }
 

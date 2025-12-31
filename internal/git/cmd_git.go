@@ -88,7 +88,7 @@ func (m *CmdGitManager) Pull(ctx context.Context, localPath string, cred *models
 // Checkout 切换分支
 func (m *CmdGitManager) Checkout(ctx context.Context, localPath, branch string) error {
 	cmd := exec.CommandContext(ctx, m.gitPath, "-C", localPath, "checkout", branch)
-	
+
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		logger.Logger.Error().
@@ -111,7 +111,7 @@ func (m *CmdGitManager) Checkout(ctx context.Context, localPath, branch string) 
 // GetCurrentBranch 获取当前分支
 func (m *CmdGitManager) GetCurrentBranch(ctx context.Context, localPath string) (string, error) {
 	cmd := exec.CommandContext(ctx, m.gitPath, "-C", localPath, "rev-parse", "--abbrev-ref", "HEAD")
-	
+
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to get current branch: %w", err)
@@ -124,7 +124,7 @@ func (m *CmdGitManager) GetCurrentBranch(ctx context.Context, localPath string) 
 // GetHeadCommitHash 获取HEAD commit hash
 func (m *CmdGitManager) GetHeadCommitHash(ctx context.Context, localPath string) (string, error) {
 	cmd := exec.CommandContext(ctx, m.gitPath, "-C", localPath, "rev-parse", "HEAD")
-	
+
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to get HEAD commit hash: %w", err)
@@ -137,15 +137,15 @@ func (m *CmdGitManager) GetHeadCommitHash(ctx context.Context, localPath string)
 // CountCommits 统计提交次数
 func (m *CmdGitManager) CountCommits(ctx context.Context, localPath, branch, fromDate string) (int, error) {
 	args := []string{"-C", localPath, "rev-list", "--count"}
-	
+
 	if fromDate != "" {
 		args = append(args, "--since="+fromDate)
 	}
-	
+
 	args = append(args, branch)
-	
+
 	cmd := exec.CommandContext(ctx, m.gitPath, args...)
-	
+
 	output, err := cmd.Output()
 	if err != nil {
 		return 0, fmt.Errorf("failed to count commits: %w", err)
@@ -158,6 +158,46 @@ func (m *CmdGitManager) CountCommits(ctx context.Context, localPath, branch, fro
 	}
 
 	return count, nil
+}
+
+// ListBranches 获取仓库分支列表
+func (m *CmdGitManager) ListBranches(ctx context.Context, localPath string) ([]string, error) {
+	// 首先获取远程分支
+	cmd := exec.CommandContext(ctx, m.gitPath, "-C", localPath, "branch", "-r")
+
+	output, err := cmd.Output()
+	if err != nil {
+		logger.Logger.Error().
+			Err(err).
+			Str("local_path", localPath).
+			Msg("failed to list remote branches")
+		return nil, fmt.Errorf("failed to list branches: %w", err)
+	}
+
+	// 解析分支列表
+	lines := strings.Split(string(output), "\n")
+	branches := make([]string, 0)
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.Contains(line, "->") {
+			// 跳过空行和HEAD指针
+			continue
+		}
+
+		// 移除 origin/ 前缀
+		branch := strings.TrimPrefix(line, "origin/")
+		if branch != "" {
+			branches = append(branches, branch)
+		}
+	}
+
+	logger.Logger.Debug().
+		Str("local_path", localPath).
+		Int("count", len(branches)).
+		Msg("branches listed successfully")
+
+	return branches, nil
 }
 
 // injectCredentials 注入凭据到URL

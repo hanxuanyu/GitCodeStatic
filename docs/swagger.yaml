@@ -1,0 +1,643 @@
+definitions:
+  handlers.Response:
+    properties:
+      code:
+        type: integer
+      data: {}
+      message:
+        type: string
+    type: object
+  models.ContributorStats:
+    properties:
+      additions:
+        description: 新增行数
+        type: integer
+      author:
+        type: string
+      commits:
+        type: integer
+      deletions:
+        description: 删除行数
+        type: integer
+      email:
+        type: string
+      modifications:
+        description: 修改行数 = min(additions, deletions)
+        type: integer
+      net_additions:
+        description: 净增加 = additions - deletions
+        type: integer
+    type: object
+  models.DateRange:
+    properties:
+      from:
+        type: string
+      to:
+        type: string
+    type: object
+  models.Repository:
+    properties:
+      created_at:
+        type: string
+      current_branch:
+        type: string
+      error_message:
+        type: string
+      has_credentials:
+        type: boolean
+      id:
+        type: integer
+      last_commit_hash:
+        type: string
+      last_pull_at:
+        type: string
+      local_path:
+        type: string
+      name:
+        type: string
+      status:
+        description: pending/cloning/ready/failed
+        type: string
+      updated_at:
+        type: string
+      url:
+        type: string
+    type: object
+  models.Statistics:
+    properties:
+      by_contributor:
+        items:
+          $ref: '#/definitions/models.ContributorStats'
+        type: array
+      summary:
+        $ref: '#/definitions/models.StatsSummary'
+    type: object
+  models.StatsConstraint:
+    properties:
+      from:
+        description: type=date_range时使用
+        type: string
+      limit:
+        description: type=commit_limit时使用
+        type: integer
+      to:
+        description: type=date_range时使用
+        type: string
+      type:
+        description: date_range 或 commit_limit
+        type: string
+    type: object
+  models.StatsResult:
+    properties:
+      cache_hit:
+        type: boolean
+      cached_at:
+        type: string
+      commit_hash:
+        type: string
+      statistics:
+        $ref: '#/definitions/models.Statistics'
+    type: object
+  models.StatsSummary:
+    properties:
+      commit_limit:
+        type: integer
+      date_range:
+        $ref: '#/definitions/models.DateRange'
+      total_commits:
+        type: integer
+      total_contributors:
+        type: integer
+    type: object
+  models.Task:
+    properties:
+      completed_at:
+        type: string
+      created_at:
+        type: string
+      duration_ms:
+        description: 计算字段
+        type: integer
+      error_message:
+        type: string
+      id:
+        type: integer
+      parameters:
+        description: JSON string
+        type: string
+      priority:
+        type: integer
+      repo_id:
+        type: integer
+      result:
+        description: JSON string
+        type: string
+      retry_count:
+        type: integer
+      started_at:
+        type: string
+      status:
+        type: string
+      task_type:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  service.AddRepoFailure:
+    properties:
+      error:
+        type: string
+      url:
+        type: string
+    type: object
+  service.AddRepoResult:
+    properties:
+      repo_id:
+        type: integer
+      task_id:
+        type: integer
+      url:
+        type: string
+    type: object
+  service.AddReposRequest:
+    properties:
+      password:
+        description: 可选的认证信息
+        type: string
+      repos:
+        items:
+          $ref: '#/definitions/service.RepoInput'
+        type: array
+      username:
+        description: 可选的认证信息
+        type: string
+    type: object
+  service.AddReposResponse:
+    properties:
+      failed:
+        items:
+          $ref: '#/definitions/service.AddRepoFailure'
+        type: array
+      succeeded:
+        items:
+          $ref: '#/definitions/service.AddRepoResult'
+        type: array
+      total:
+        type: integer
+    type: object
+  service.CalculateRequest:
+    properties:
+      branch:
+        type: string
+      constraint:
+        $ref: '#/definitions/models.StatsConstraint'
+      repo_id:
+        type: integer
+    type: object
+  service.CountCommitsResponse:
+    properties:
+      branch:
+        type: string
+      commit_count:
+        type: integer
+      from:
+        type: string
+      repo_id:
+        type: integer
+      to:
+        type: string
+    type: object
+  service.RepoInput:
+    properties:
+      branch:
+        type: string
+      url:
+        type: string
+    type: object
+info:
+  contact: {}
+paths:
+  /repos:
+    get:
+      consumes:
+      - application/json
+      description: 分页查询仓库列表，支持按状态筛选
+      parameters:
+      - description: 状态筛选(pending/cloning/ready/failed)
+        in: query
+        name: status
+        type: string
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: 获取仓库列表
+      tags:
+      - 仓库管理
+  /repos/{id}:
+    delete:
+      description: 删除指定仓库
+      parameters:
+      - description: 仓库ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: 删除仓库
+      tags:
+      - 仓库管理
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取仓库详细信息
+      parameters:
+      - description: 仓库ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Repository'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: 获取仓库详情
+      tags:
+      - 仓库管理
+  /repos/{id}/branches:
+    get:
+      description: 获取指定仓库的所有分支
+      parameters:
+      - description: 仓库ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: 获取仓库分支列表
+      tags:
+      - 仓库管理
+  /repos/{id}/reset:
+    post:
+      description: 异步重置仓库到最新状态
+      parameters:
+      - description: 仓库ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Task'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: 重置仓库
+      tags:
+      - 仓库管理
+  /repos/{id}/switch-branch:
+    post:
+      consumes:
+      - application/json
+      description: 异步切换仓库到指定分支
+      parameters:
+      - description: 仓库ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 分支名称
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            branch:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Task'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: 切换仓库分支
+      tags:
+      - 仓库管理
+  /repos/{id}/update:
+    post:
+      consumes:
+      - application/json
+      description: 异步拉取仓库最新代码(git pull)
+      parameters:
+      - description: 仓库ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Task'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: 更新仓库
+      tags:
+      - 仓库管理
+  /repos/batch:
+    post:
+      consumes:
+      - application/json
+      description: 批量添加多个Git仓库，异步克隆到本地
+      parameters:
+      - description: 仓库URL列表
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/service.AddReposRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.AddReposResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: 批量添加仓库
+      tags:
+      - 仓库管理
+  /stats/caches:
+    get:
+      description: 获取已计算的统计缓存列表
+      parameters:
+      - description: 仓库ID（可选，不传则返回所有）
+        in: query
+        name: repo_id
+        type: integer
+      - default: 50
+        description: 返回数量限制
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: 获取统计缓存列表
+      tags:
+      - 统计管理
+  /stats/calculate:
+    post:
+      consumes:
+      - application/json
+      description: 异步触发统计计算任务
+      parameters:
+      - description: 统计请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/service.CalculateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Task'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: 触发统计任务
+      tags:
+      - 统计管理
+  /stats/commits/count:
+    get:
+      description: 统计指定条件下的提交次数
+      parameters:
+      - description: 仓库ID
+        in: query
+        name: repo_id
+        required: true
+        type: integer
+      - description: 分支名称
+        in: query
+        name: branch
+        required: true
+        type: string
+      - description: 开始日期
+        in: query
+        name: from
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.CountCommitsResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: 统计提交次数
+      tags:
+      - 统计管理
+  /stats/query:
+    get:
+      description: 查询统计计算结果
+      parameters:
+      - description: 仓库ID
+        in: query
+        name: repo_id
+        required: true
+        type: integer
+      - description: 分支名称
+        in: query
+        name: branch
+        required: true
+        type: string
+      - description: 约束类型
+        in: query
+        name: constraint_type
+        type: string
+      - description: 开始日期
+        in: query
+        name: from
+        type: string
+      - description: 结束日期
+        in: query
+        name: to
+        type: string
+      - description: 提交数限制
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.StatsResult'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: 查询统计结果
+      tags:
+      - 统计管理
+  /tasks:
+    get:
+      description: 查询任务列表，可按状态过滤
+      parameters:
+      - description: 任务状态
+        in: query
+        name: status
+        type: string
+      - default: 50
+        description: 返回数量限制
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/handlers.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.Response'
+      summary: 查询任务列表
+      tags:
+      - 任务管理
+swagger: "2.0"

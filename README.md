@@ -1,6 +1,6 @@
 # GitCodeStatic - Git仓库统计与缓存系统
 
-一个用Go实现的高性能Git仓库代码统计与缓存系统，支持批量仓库管理、异步任务处理、智能缓存、多种统计维度。
+一个用Go实现的高性能Git仓库代码统计与缓存系统，支持批量仓库管理、异步任务处理、智能缓存、多种统计维度，提供 Swagger API 文档和 Web 管理界面。
 
 ## 功能特性
 
@@ -19,35 +19,31 @@
 - 🔒 **安全**：凭据加密存储、URL脱敏、命令注入防护
 - 🧪 **可测试**：关键逻辑提供单元测试示例
 - 🎯 **RESTful API**：统一响应格式、完善错误码
+- 📚 **Swagger 文档**：完整的 API 文档和交互式测试界面
+- 🖥️ **Web UI**：基于 Vue 3 + Element Plus 的管理界面，支持离线部署
 - 🗄️ **存储灵活**：默认SQLite，可扩展PostgreSQL
 - ⚡ **高性能**：任务去重、缓存命中、并发控制
 
-## 架构设计
+## 快速体验
 
-详见 [ARCHITECTURE.md](ARCHITECTURE.md)
-
-```
-API Layer → Service Layer → Worker Pool → Git Manager/Stats Calculator → Storage/Cache
-```
-
-## 快速开始
-
-### 前置要求
-- Go 1.21+
-- Git 2.30+（推荐，用于git命令模式）
-- SQLite3（默认）
-
-### 安装依赖
+### 启动服务
 
 ```bash
-go mod tidy
+# 构建
+make build
+
+# 运行
+./bin/gitcodestatic
+
+# 或直接运行
+go run cmd/server/main.go
 ```
 
-### 配置
+服务启动后，可以通过以下方式访问：
 
-复制并编辑配置文件：
-
-```bash
+- **Web UI**: http://localhost:8080/
+- **Swagger API 文档**: http://localhost:8080/swagger/index.html
+- **Health Check**: http://localhost:8080/health
 cp configs/config.yaml configs/config.local.yaml
 ```
 
@@ -90,6 +86,28 @@ go build -o gitcodestatic cmd/server/main.go
 服务启动后访问：
 - API: `http://localhost:8080/api/v1`
 - Health: `http://localhost:8080/health`
+
+## Web UI 使用
+
+启动服务后访问 http://localhost:8080/ 进入 Web 管理界面。
+
+### 主要功能
+
+1. **仓库管理**
+   - 批量添加仓库（支持多行输入）
+   - 查看仓库列表和状态
+   - 切换分支、更新、重置、删除操作
+
+2. **统计管理**
+   - 触发统计计算（支持日期范围和提交数限制）
+   - 查询统计结果（可视化展示）
+   - 查看贡献者详情
+
+3. **API 文档**
+   - 快速访问 Swagger 文档
+   - API 使用示例
+
+详细使用说明请参考 [WEBUI_GUIDE.md](docs/WEBUI_GUIDE.md)
 
 ## API 使用示例
 
@@ -327,6 +345,16 @@ go test ./... -cover
 
 ## 开发指南
 
+### 添加新的 API 端点
+
+1. 在 `internal/api/handlers/` 创建handler方法
+2. 添加 Swagger 注释
+3. 在 `internal/api/router.go` 注册路由
+4. 重新生成 Swagger 文档：
+   ```bash
+   swag init -g cmd/server/main.go -o docs
+   ```
+
 ### 添加新的任务类型
 
 1. 在 `internal/models/task.go` 定义任务类型常量
@@ -336,6 +364,12 @@ go test ./... -cover
 ### 扩展存储层
 
 实现 `internal/storage/interface.go` 中的接口即可，参考 `sqlite/` 实现。
+
+### 扩展 Web UI
+
+1. 修改 `web/index.html` 添加新的页面组件
+2. 在 `web/static/app.js` 添加相应的方法和数据
+3. 参考 [WEBUI_GUIDE.md](docs/WEBUI_GUIDE.md) 了解详细开发流程
 
 ## 错误码
 
@@ -350,6 +384,13 @@ go test ./... -cover
 | 50001 | 数据库错误 |
 | 50002 | Git操作失败 |
 
+## 文档
+
+- [架构设计](ARCHITECTURE.md) - 系统架构和技术选型
+- [快速开始](QUICKSTART.md) - 快速上手指南
+- [Web UI 使用指南](docs/WEBUI_GUIDE.md) - 前端和 Swagger 文档使用
+- [项目总结](SUMMARY.md) - 项目完整总结
+
 ## 性能优化建议
 
 1. **Git命令模式**：确保安装git命令，性能比go-git快10-100倍
@@ -363,6 +404,15 @@ go test ./... -cover
 2. go-git模式性能较差，仅作为fallback
 3. 大仓库（>5GB）统计可能耗时较长
 4. SSH认证暂未完整实现（仅支持https）
+
+## 技术栈
+
+- **后端**: Go 1.21+, Chi Router, zerolog
+- **存储**: SQLite (可扩展 PostgreSQL)
+- **Git**: git CLI + go-git fallback
+- **文档**: Swagger 2.0 (swaggo/swag)
+- **前端**: Vue 3, Element Plus, Axios
+- **特性**: 完全离线部署支持
 
 ## 贡献
 
